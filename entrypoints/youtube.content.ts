@@ -219,6 +219,7 @@ export default defineContentScript({
     '*://m.youtube.com/*',
     '*://youtu.be/*',
   ],
+  excludeMatches: ['*://music.youtube.com/*', '*://*.music.youtube.com/*'],
   runAt: 'document_start',
   main(ctx) {
     void redirectIfBlocked();

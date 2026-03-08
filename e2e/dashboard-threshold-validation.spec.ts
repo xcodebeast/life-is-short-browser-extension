@@ -31,3 +31,24 @@ test('auto-saves threshold changes and clamps out-of-range values', async ({
   status = await getYoutubeStatus(dashboardPage);
   expect(status.threshold).toBe(4);
 });
+
+test('publishes branded icon paths in the extension manifest', async ({
+  dashboardPage,
+}) => {
+  const manifest = await dashboardPage.evaluate(() => browser.runtime.getManifest());
+
+  expect(manifest.icons).toEqual({
+    16: 'icon/16.png',
+    32: 'icon/32.png',
+    48: 'icon/48.png',
+    96: 'icon/96.png',
+    128: 'icon/128.png',
+  });
+  expect(manifest.action?.default_icon).toEqual({
+    16: 'icon/16.png',
+    32: 'icon/32.png',
+    48: 'icon/48.png',
+    96: 'icon/96.png',
+    128: 'icon/128.png',
+  });
+});

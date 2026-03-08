@@ -2,9 +2,20 @@ import type { SiteModule } from '@/src/core/site-module';
 import type { YoutubeSettings } from '@/src/core/types';
 
 const YOUTUBE_HOST_SUFFIXES = ['youtube.com', 'm.youtube.com', 'youtu.be'];
+const YOUTUBE_EXCLUDED_HOSTS = ['music.youtube.com'];
 
 export function isYoutubeHost(hostname: string): boolean {
   const normalizedHost = hostname.toLowerCase();
+  if (
+    YOUTUBE_EXCLUDED_HOSTS.some(
+      (excludedHost) =>
+        normalizedHost === excludedHost ||
+        normalizedHost.endsWith(`.${excludedHost}`),
+    )
+  ) {
+    return false;
+  }
+
   return YOUTUBE_HOST_SUFFIXES.some(
     (suffix) => normalizedHost === suffix || normalizedHost.endsWith(`.${suffix}`),
   );

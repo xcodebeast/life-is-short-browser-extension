@@ -39,3 +39,79 @@ test('redirects blocked YouTube visits and shows the required alert every attemp
     }
   }
 });
+
+test('does not block or count visits on music.youtube.com', async ({
+  context,
+  dashboardPage,
+}) => {
+  await resetExtensionStorage(dashboardPage);
+  await updateYoutubeThreshold(dashboardPage, 1);
+  await incrementYoutubeUsage(dashboardPage, 1);
+
+  const youtubeStatus = await getYoutubeStatus(dashboardPage);
+  expect(youtubeStatus.blocked).toBe(true);
+  expect(youtubeStatus.count).toBe(1);
+
+  await context.route('https://music.youtube.com/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: `
+        <!doctype html>
+        <html lang="en">
+          <head><title>Music Stub</title></head>
+          <body>
+            <h1>Music Stub</h1>
+            <video id="player"></video>
+          </body>
+        </html>
+      `,
+    });
+  });
+
+  const page = await context.newPage();
+  await page.goto('https://music.youtube.com/watch?v=ambient-track', {
+    waitUntil: 'domcontentloaded',
+  });
+
+  await expect(page).toHaveURL(/music\.youtube\.com\/watch/);
+  await expect(page.getByRole('heading', { name: 'Music Stub' })).toBeVisible();
+  await expect(page.getByText(BLOCK_ALERT_TEXT)).toHaveCount(0);
+
+  await page.waitForTimeout(1_200);
+  await page.evaluate(() => {
+    const video = document.querySelector<HTMLVideoElement>('#player');
+    if (!video) {
+      throw new Error('Missing test video element');
+    }
+
+    Object.defineProperty(video, 'duration', {
+      configurable: true,
+      get: () => 100,
+    });
+    Object.defineProperty(video, 'currentTime', {
+      configurable: true,
+      get: () => 60,
+    });
+    Object.defineProperty(video, 'paused', {
+      configurable: true,
+      get: () => false,
+    });
+    Object.defineProperty(video, 'readyState', {
+      configurable: true,
+      get: () => 4,
+    });
+
+    video.dispatchEvent(new Event('play'));
+    video.dispatchEvent(new Event('timeupdate'));
+    video.dispatchEvent(new Event('ended'));
+  });
+
+  await dashboardPage.reload();
+
+  const statusAfterMusicVisit = await getYoutubeStatus(dashboardPage);
+  expect(statusAfterMusicVisit.count).toBe(1);
+  expect(statusAfterMusicVisit.blocked).toBe(true);
+
+  await page.close();
+});
