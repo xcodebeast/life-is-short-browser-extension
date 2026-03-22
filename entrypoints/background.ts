@@ -5,12 +5,18 @@ import {
   type GetSiteStatusResponse,
   type RuntimeMessage,
   type RuntimeResponse,
-  type UpdateThresholdResponse,
+  type UpdateYoutubeSettingsMessage,
+  type UpdateYoutubeSettingsResponse,
   type UsageIncrementResponse,
 } from '@/src/core/messages';
+import { getPersistentUsageState, incrementPersistentSiteUsage } from '@/src/core/persistent-usage-store';
 import { shouldLatchBlockForYoutube, shouldSiteBeBlocked } from '@/src/core/policy-engine';
-import { getSettings, updateYoutubeThreshold } from '@/src/core/settings-store';
-import { getUsageStateForToday, incrementSiteUsage, latchSiteBlock } from '@/src/core/usage-store';
+import { getSettings, updateYoutubeSettings } from '@/src/core/settings-store';
+import {
+  getUsageStateForCurrentWindow,
+  incrementSiteUsage,
+  latchSiteBlock,
+} from '@/src/core/usage-store';
 import type { SiteId, SiteSettings, SiteStatus, SiteUsage } from '@/src/core/types';
 
 function toSiteStatus(args: {
@@ -33,6 +39,7 @@ function toSiteStatus(args: {
       blocked,
       enabled: settings.youtube.enabled,
       threshold: settings.youtube.threshold,
+      resetWindowHours: settings.youtube.resetWindowHours,
     };
   }
 
@@ -48,10 +55,8 @@ function toSiteStatus(args: {
 }
 
 async function getStatus(siteId: SiteId): Promise<SiteStatus> {
-  const [usage, settings] = await Promise.all([
-    getUsageStateForToday(),
-    getSettings(),
-  ]);
+  const settings = await getSettings();
+  const usage = await getUsageStateForCurrentWindow(settings);
 
   return toSiteStatus({
     siteId,
@@ -63,8 +68,9 @@ async function getStatus(siteId: SiteId): Promise<SiteStatus> {
 async function handleUsageIncrement(
   siteId: SiteId,
 ): Promise<UsageIncrementResponse> {
-  let usage = await incrementSiteUsage(siteId);
   const settings = await getSettings();
+  let usage = await incrementSiteUsage(siteId, settings);
+  await incrementPersistentSiteUsage(siteId);
 
   if (
     siteId === 'youtube' &&
@@ -73,7 +79,7 @@ async function handleUsageIncrement(
       settings: settings.youtube,
     })
   ) {
-    usage = await latchSiteBlock('youtube');
+    usage = await latchSiteBlock('youtube', settings);
   }
 
   return {
@@ -86,20 +92,24 @@ async function handleUsageIncrement(
   };
 }
 
-async function handleThresholdUpdate(
-  threshold: number,
-): Promise<UpdateThresholdResponse> {
+async function handleYoutubeSettingsUpdate(
+  message: UpdateYoutubeSettingsMessage,
+): Promise<UpdateYoutubeSettingsResponse> {
   const beforeSettings = await getSettings();
   const previousThreshold = beforeSettings.youtube.threshold;
 
-  const nextSettings = await updateYoutubeThreshold(threshold);
-  let usage = await getUsageStateForToday();
+  const nextSettings = await updateYoutubeSettings({
+    threshold: message.threshold,
+    resetWindowHours: message.resetWindowHours,
+  });
+  let usage = await getUsageStateForCurrentWindow(nextSettings);
 
   if (
+    typeof message.threshold === 'number' &&
     nextSettings.youtube.threshold < previousThreshold &&
     usage.sites.youtube.count >= nextSettings.youtube.threshold
   ) {
-    usage = await latchSiteBlock('youtube');
+    usage = await latchSiteBlock('youtube', nextSettings);
   }
 
   return {
@@ -121,18 +131,20 @@ async function handleMessage(message: RuntimeMessage): Promise<RuntimeResponse> 
         ok: true,
         status: await getStatus(message.siteId),
       } satisfies GetSiteStatusResponse;
-    case MESSAGE_TYPES.updateThreshold:
-      return handleThresholdUpdate(message.threshold);
+    case MESSAGE_TYPES.updateYoutubeSettings:
+      return handleYoutubeSettingsUpdate(message);
     case MESSAGE_TYPES.getDashboardState: {
-      const [usage, settings] = await Promise.all([
-        getUsageStateForToday(),
-        getSettings(),
+      const settings = await getSettings();
+      const [usage, persistentUsage] = await Promise.all([
+        getUsageStateForCurrentWindow(settings),
+        getPersistentUsageState(),
       ]);
 
       return {
         ok: true,
         dashboard: {
           usage,
+          persistentUsage,
           settings,
         },
       } satisfies GetDashboardStateResponse;
@@ -143,8 +155,14 @@ async function handleMessage(message: RuntimeMessage): Promise<RuntimeResponse> 
 }
 
 export default defineBackground(() => {
-  // Ensure storage is initialized and current-day usage exists.
-  void Promise.all([getSettings(), getUsageStateForToday()]);
+  // Ensure storage is initialized and the active usage window exists.
+  void (async () => {
+    const settings = await getSettings();
+    await Promise.all([
+      getUsageStateForCurrentWindow(settings),
+      getPersistentUsageState(),
+    ]);
+  })();
 
   browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     void handleMessage(message as RuntimeMessage)

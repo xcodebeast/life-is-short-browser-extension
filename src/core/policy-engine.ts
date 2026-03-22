@@ -2,6 +2,8 @@ import type { SiteSettings, SiteUsage } from './types';
 
 export const YOUTUBE_THRESHOLD_MIN = 1;
 export const YOUTUBE_THRESHOLD_MAX = 10;
+export const YOUTUBE_RESET_WINDOW_HOURS_MIN = 1;
+export const YOUTUBE_RESET_WINDOW_HOURS_MAX = 24;
 
 export function clampYoutubeThreshold(value: number): number {
   if (!Number.isFinite(value)) {
@@ -11,6 +13,17 @@ export function clampYoutubeThreshold(value: number): number {
   return Math.max(
     YOUTUBE_THRESHOLD_MIN,
     Math.min(YOUTUBE_THRESHOLD_MAX, Math.round(value)),
+  );
+}
+
+export function clampYoutubeResetWindowHours(value: number): number {
+  if (!Number.isFinite(value)) {
+    return YOUTUBE_RESET_WINDOW_HOURS_MIN;
+  }
+
+  return Math.max(
+    YOUTUBE_RESET_WINDOW_HOURS_MIN,
+    Math.min(YOUTUBE_RESET_WINDOW_HOURS_MAX, Math.round(value)),
   );
 }
 

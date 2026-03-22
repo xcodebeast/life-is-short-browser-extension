@@ -37,5 +37,6 @@ export const youtubeSiteModule: SiteModule<'youtube'> = {
   getDefaultSettings: (): YoutubeSettings => ({
     enabled: true,
     threshold: 3,
+    resetWindowHours: 8,
   }),
 };

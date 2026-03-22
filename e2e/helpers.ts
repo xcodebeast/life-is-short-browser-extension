@@ -1,12 +1,15 @@
 import type { Page } from '@playwright/test';
 import {
   MESSAGE_TYPES,
+  type GetDashboardStateResponse,
   type GetSiteStatusResponse,
   type RuntimeMessage,
   type RuntimeResponse,
 } from '../src/core/messages';
+import type { PersistentUsageState } from '../src/core/types';
 
-const USAGE_STORAGE_KEY = 'lifeIsShort.usage.v1';
+const USAGE_STORAGE_KEY = 'lifeIsShort.usage.v2';
+const PERSISTENT_USAGE_STORAGE_KEY = 'lifeIsShort.persistentUsage.v1';
 
 export async function resetExtensionStorage(page: Page): Promise<void> {
   await page.evaluate(async () => {
@@ -42,41 +45,72 @@ export async function getYoutubeStatus(page: Page) {
   return response.status;
 }
 
+export async function getDashboardState(page: Page) {
+  const response = await sendRuntimeMessage<GetDashboardStateResponse>(page, {
+    type: MESSAGE_TYPES.getDashboardState,
+  });
+
+  return response.dashboard;
+}
+
 export async function updateYoutubeThreshold(
   page: Page,
   threshold: number,
 ): Promise<void> {
   await sendRuntimeMessage(page, {
-    type: MESSAGE_TYPES.updateThreshold,
+    type: MESSAGE_TYPES.updateYoutubeSettings,
     siteId: 'youtube',
     threshold,
   });
 }
 
-export async function setUsageStateToYesterday(page: Page): Promise<void> {
-  await page.evaluate(async (usageKey) => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+export async function updateYoutubeResetWindowHours(
+  page: Page,
+  resetWindowHours: number,
+): Promise<void> {
+  await sendRuntimeMessage(page, {
+    type: MESSAGE_TYPES.updateYoutubeSettings,
+    siteId: 'youtube',
+    resetWindowHours,
+  });
+}
 
-    const year = yesterday.getFullYear();
-    const month = String(yesterday.getMonth() + 1).padStart(2, '0');
-    const day = String(yesterday.getDate()).padStart(2, '0');
-    const dateKey = `${year}-${month}-${day}`;
-
+export async function setYoutubeUsageWindowState(
+  page: Page,
+  args: {
+    hoursAgo: number;
+    count: number;
+    blockedLatched: boolean;
+  },
+): Promise<void> {
+  await page.evaluate(async ({ usageKey, nextState }) => {
     await browser.storage.local.set({
-      [usageKey]: {
-        dateKey,
-        sites: {
-          youtube: {
-            count: 7,
-            blockedLatched: true,
-          },
-          linkedin: {
-            count: 0,
-            blockedLatched: false,
-          },
+      [usageKey]: nextState,
+    });
+  }, {
+    usageKey: USAGE_STORAGE_KEY,
+    nextState: {
+      sites: {
+        youtube: {
+          count: args.count,
+          blockedLatched: args.blockedLatched,
+          windowStartedAt: Date.now() - args.hoursAgo * 60 * 60 * 1000,
+        },
+        linkedin: {
+          count: 0,
+          blockedLatched: false,
+          windowStartedAt: Date.now(),
         },
       },
-    });
-  }, USAGE_STORAGE_KEY);
+    },
+  });
+}
+
+export async function getPersistentUsageStateFromSync(
+  page: Page,
+): Promise<PersistentUsageState | null> {
+  return page.evaluate(async (persistentUsageKey) => {
+    const result = await browser.storage.sync.get(persistentUsageKey);
+    return (result[persistentUsageKey] as PersistentUsageState | undefined) ?? null;
+  }, PERSISTENT_USAGE_STORAGE_KEY);
 }

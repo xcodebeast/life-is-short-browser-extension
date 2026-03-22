@@ -3,7 +3,7 @@ import type { DashboardState, SiteId, SiteStatus } from './types';
 export const MESSAGE_TYPES = {
   usageIncrement: 'USAGE_INCREMENT',
   getSiteStatus: 'GET_SITE_STATUS',
-  updateThreshold: 'UPDATE_THRESHOLD',
+  updateYoutubeSettings: 'UPDATE_YOUTUBE_SETTINGS',
   getDashboardState: 'GET_DASHBOARD_STATE',
 } as const;
 
@@ -17,10 +17,11 @@ export type GetSiteStatusMessage = {
   siteId: SiteId;
 };
 
-export type UpdateThresholdMessage = {
-  type: typeof MESSAGE_TYPES.updateThreshold;
+export type UpdateYoutubeSettingsMessage = {
+  type: typeof MESSAGE_TYPES.updateYoutubeSettings;
   siteId: 'youtube';
-  threshold: number;
+  threshold?: number;
+  resetWindowHours?: number;
 };
 
 export type GetDashboardStateMessage = {
@@ -30,7 +31,7 @@ export type GetDashboardStateMessage = {
 export type RuntimeMessage =
   | UsageIncrementMessage
   | GetSiteStatusMessage
-  | UpdateThresholdMessage
+  | UpdateYoutubeSettingsMessage
   | GetDashboardStateMessage;
 
 export type UsageIncrementResponse = {
@@ -43,7 +44,7 @@ export type GetSiteStatusResponse = {
   status: SiteStatus;
 };
 
-export type UpdateThresholdResponse = {
+export type UpdateYoutubeSettingsResponse = {
   ok: true;
   status: SiteStatus;
 };
@@ -61,7 +62,7 @@ export type ErrorResponse = {
 export type SuccessRuntimeResponse =
   | UsageIncrementResponse
   | GetSiteStatusResponse
-  | UpdateThresholdResponse
+  | UpdateYoutubeSettingsResponse
   | GetDashboardStateResponse;
 
 export type RuntimeResponse = SuccessRuntimeResponse | ErrorResponse;

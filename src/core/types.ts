@@ -5,6 +5,7 @@ export type SiteId = (typeof SITE_IDS)[number];
 export type YoutubeSettings = {
   enabled: boolean;
   threshold: number;
+  resetWindowHours: number;
 };
 
 export type LinkedinSettings = {
@@ -19,11 +20,21 @@ export type SiteSettings = {
 export type SiteUsage = {
   count: number;
   blockedLatched: boolean;
+  windowStartedAt: number;
 };
 
-export type DailyUsageState = {
-  dateKey: string;
+export type UsageState = {
   sites: Record<SiteId, SiteUsage>;
+};
+
+export type SitePersistentUsage = {
+  totalCount: number;
+  todayCount: number;
+  todayKey: string;
+};
+
+export type PersistentUsageState = {
+  sites: Record<SiteId, SitePersistentUsage>;
 };
 
 export type SiteStatus = {
@@ -32,9 +43,11 @@ export type SiteStatus = {
   blocked: boolean;
   enabled: boolean;
   threshold?: number;
+  resetWindowHours?: number;
 };
 
 export type DashboardState = {
-  usage: DailyUsageState;
+  usage: UsageState;
+  persistentUsage: PersistentUsageState;
   settings: SiteSettings;
 };

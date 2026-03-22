@@ -13,7 +13,9 @@ test('configures threshold and blocks after hitting completion count', async ({
   await dashboardPage.reload();
 
   const thresholdInput = dashboardPage.getByLabel('Threshold (1-10)');
+  const resetWindowInput = dashboardPage.getByLabel('Reset window (hours)');
   await expect(thresholdInput).toHaveValue('3');
+  await expect(resetWindowInput).toHaveValue('8');
 
   await updateYoutubeThreshold(dashboardPage, 2);
   await dashboardPage.reload();
