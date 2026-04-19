@@ -5,6 +5,7 @@ import {
   type GetSiteStatusResponse,
   type RuntimeMessage,
   type RuntimeResponse,
+  type UpdateExtensionEnabledResponse,
 } from '../src/core/messages';
 import type { PersistentUsageState } from '../src/core/types';
 
@@ -72,6 +73,16 @@ export async function updateYoutubeResetWindowHours(
     type: MESSAGE_TYPES.updateYoutubeSettings,
     siteId: 'youtube',
     resetWindowHours,
+  });
+}
+
+export async function updateExtensionEnabled(
+  page: Page,
+  enabled: boolean,
+): Promise<void> {
+  await sendRuntimeMessage<UpdateExtensionEnabledResponse>(page, {
+    type: MESSAGE_TYPES.updateExtensionEnabled,
+    enabled,
   });
 }
 

@@ -5,6 +5,8 @@ import {
   type UsageIncrementResponse,
 } from '@/src/core/messages';
 import { BLOCK_ALERT_TEXT } from '@/src/constants/text';
+import { createElementBlocker } from '@/src/core/element-blocker';
+import { youtubeSiteModule } from '@/src/sites/youtube/module';
 
 const POLL_INTERVAL_MS = 500;
 const BLOCK_CHECK_INTERVAL_MS = 2_000;
@@ -28,6 +30,32 @@ let lastBlockCheckTimestamp = 0;
 let audioContext: BrowserAudioContext | null = null;
 let blockCheckInFlight = false;
 let deferBlockUntilNextSession = false;
+const elementBlocker = youtubeSiteModule.elementBlocker
+  ? createElementBlocker(youtubeSiteModule.elementBlocker)
+  : null;
+
+function isElementBlockerConfiguredForCurrentUrl(): boolean {
+  const configuration = youtubeSiteModule.elementBlocker;
+  return Boolean(
+    configuration &&
+      (!configuration.matchesUrl || configuration.matchesUrl(window.location.href)),
+  );
+}
+
+function setElementBlockerEnabled(enabled: boolean): void {
+  elementBlocker?.setEnabled(
+    enabled && isElementBlockerConfiguredForCurrentUrl(),
+  );
+}
+
+function refreshElementBlocker(): void {
+  if (!isElementBlockerConfiguredForCurrentUrl()) {
+    elementBlocker?.setEnabled(false);
+    return;
+  }
+
+  elementBlocker?.refresh();
+}
 
 function getAudioContextConstructor():
   | BrowserAudioContextConstructor
@@ -213,6 +241,10 @@ function removeBlockScreen(): void {
   getBlockScreen()?.remove();
 }
 
+function syncElementBlocker(status: GetSiteStatusResponse['status']): void {
+  setElementBlockerEnabled(status.extensionEnabled && status.enabled);
+}
+
 async function maybeShowBlockScreen(): Promise<boolean> {
   if (blockCheckInFlight) {
     return Boolean(getBlockScreen());
@@ -228,6 +260,8 @@ async function maybeShowBlockScreen(): Promise<boolean> {
     if (!response.ok) {
       return false;
     }
+
+    syncElementBlocker(response.status);
 
     if (!response.status.blocked) {
       removeBlockScreen();
@@ -260,6 +294,8 @@ async function recordCompletion(): Promise<void> {
     if (!response.ok) {
       return;
     }
+
+    syncElementBlocker(response.status);
 
     if (!response.status.extensionEnabled) {
       completionCountedForSession = true;
@@ -373,9 +409,11 @@ export default defineContentScript({
   excludeMatches: ['*://music.youtube.com/*', '*://*.music.youtube.com/*'],
   runAt: 'document_start',
   main(ctx) {
+    setElementBlockerEnabled(true);
     void maybeShowBlockScreen();
 
     const intervalId = ctx.setInterval(() => {
+      refreshElementBlocker();
       void tick();
     }, POLL_INTERVAL_MS);
 
@@ -383,6 +421,7 @@ export default defineContentScript({
       if (activeVideo) {
         detachVideoListeners(activeVideo);
       }
+      elementBlocker?.destroy();
       window.clearInterval(intervalId);
     });
   },
